@@ -2,12 +2,13 @@ name: telco_churn_env
 channels:
   - defaults
 dependencies:
-  - python=3.11
+  - python=3.10 
   - pip
   - pip:
-      - mlflow
+      - mlflow==2.19.0
       - scikit-learn
       - pandas
       - matplotlib
       - seaborn
       - dagshub
+      - virtualenv
