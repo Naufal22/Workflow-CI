@@ -1,0 +1,11 @@
+# Abaikan folder sampah Python
+__pycache__/
+*.py[cod]
+
+# Abaikan folder environment
+venv/
+env/
+
+# Abaikan file sistem Mac/Windows
+.DS_Store
+Thumbs.db
