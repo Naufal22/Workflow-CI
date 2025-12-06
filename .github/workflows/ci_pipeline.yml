@@ -40,7 +40,7 @@ jobs:
         DAGSHUB_USER_TOKEN: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
       run: |
         cd MLProject
-        mlflow run . --no-conda --env-manager=local
+        mlflow run . --env-manager=local
 
     # 6. Build Docker Image (Advance)
     - name: Build Docker Image
