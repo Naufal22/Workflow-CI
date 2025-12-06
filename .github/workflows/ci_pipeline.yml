@@ -30,7 +30,6 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Train Model (MLflow Run)
-      # KITA TAMBAHKAN URI DISINI BIAR GAK ERROR 500
       env:
         DAGSHUB_USER_TOKEN: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
         MLFLOW_TRACKING_URI: "https://dagshub.com/Naufal22/Eksperimen_SML_MuhammadNaufalAqil.mlflow"
@@ -38,8 +37,8 @@ jobs:
         MLFLOW_TRACKING_PASSWORD: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
       run: |
         cd MLProject
-        # Jalankan training (data akan masuk ke DagsHub)
-        mlflow run . --env-manager=local
+        # FIX: Tambahkan experiment-name biar sinkron dengan script python
+        mlflow run . --env-manager=local --experiment-name Eksperimen_Telco_Churn_Final
 
     - name: Build Docker Image
       env:
@@ -47,13 +46,12 @@ jobs:
         MLFLOW_TRACKING_USERNAME: "Naufal22"
         MLFLOW_TRACKING_PASSWORD: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
       run: |
-        # Ambil Run ID paling baru dari DagsHub menggunakan Python
-        # Pastikan nama eksperimen SAMA PERSIS dengan di modelling.py ('Eksperimen_Telco_Churn_Final')
+        # Ambil Run ID paling baru dari DagsHub (karena kita pakai Cloud)
         LATEST_RUN_ID=$(python -c "import mlflow; mlflow.set_tracking_uri('$MLFLOW_TRACKING_URI'); runs = mlflow.search_runs(experiment_names=['Eksperimen_Telco_Churn_Final']); print(runs.iloc[0].run_id)")
         
         echo "Building Docker from Run ID: $LATEST_RUN_ID"
         
-        # Download model dari Cloud dan jadikan Docker
+        # Build dari Cloud Artifacts
         mlflow models build-docker -m "runs:/$LATEST_RUN_ID/model" -n ${{ secrets.DOCKER_USERNAME }}/telco-churn-model:latest --enable-mlserver
 
     - name: Push Docker Image
