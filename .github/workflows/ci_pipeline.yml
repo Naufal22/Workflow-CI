@@ -10,50 +10,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Ambil Kodingan
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. Siapkan Python
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
-    # 3. Install Library
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # Kita install library dasar dulu
         pip install mlflow==2.18.0 dagshub pandas scikit-learn matplotlib seaborn virtualenv
 
-    # 4. Login ke Docker Hub
     - name: Login to Docker Hub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # 5. Training Model
     - name: Train Model (MLflow Run)
+      # KITA TAMBAHKAN URI DISINI BIAR GAK ERROR 500
       env:
         DAGSHUB_USER_TOKEN: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
+        MLFLOW_TRACKING_URI: "https://dagshub.com/Naufal22/Eksperimen_SML_MuhammadNaufalAqil.mlflow"
+        MLFLOW_TRACKING_USERNAME: "Naufal22"
+        MLFLOW_TRACKING_PASSWORD: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
       run: |
         cd MLProject
+        # Jalankan training (data akan masuk ke DagsHub)
         mlflow run . --env-manager=local
 
-    # 6. Build Docker Image (Advance)
     - name: Build Docker Image
+      env:
+        MLFLOW_TRACKING_URI: "https://dagshub.com/Naufal22/Eksperimen_SML_MuhammadNaufalAqil.mlflow"
+        MLFLOW_TRACKING_USERNAME: "Naufal22"
+        MLFLOW_TRACKING_PASSWORD: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
       run: |
-        cd MLProject
-        # Autolog menyimpan di ./mlruns/0/<run_id>/artifacts/model
-        LATEST_RUN=$(ls -td mlruns/0/* | head -1)
-        echo "Menggunakan model dari: $LATEST_RUN"
+        # Ambil Run ID paling baru dari DagsHub menggunakan Python
+        # Pastikan nama eksperimen SAMA PERSIS dengan di modelling.py ('Eksperimen_Telco_Churn_Final')
+        LATEST_RUN_ID=$(python -c "import mlflow; mlflow.set_tracking_uri('$MLFLOW_TRACKING_URI'); runs = mlflow.search_runs(experiment_names=['Eksperimen_Telco_Churn_Final']); print(runs.iloc[0].run_id)")
         
-        # Build docker dari folder model hasil autolog
-        mlflow models build-docker -m "${LATEST_RUN}/artifacts/model" -n ${{ secrets.DOCKER_USERNAME }}/telco-churn-model:latest --enable-mlserver
+        echo "Building Docker from Run ID: $LATEST_RUN_ID"
+        
+        # Download model dari Cloud dan jadikan Docker
+        mlflow models build-docker -m "runs:/$LATEST_RUN_ID/model" -n ${{ secrets.DOCKER_USERNAME }}/telco-churn-model:latest --enable-mlserver
 
-    # 7. Push Image ke Docker Hub
     - name: Push Docker Image
       run: |
         docker push ${{ secrets.DOCKER_USERNAME }}/telco-churn-model:latest
