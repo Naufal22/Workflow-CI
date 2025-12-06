@@ -14,7 +14,6 @@ def main():
     print("🚀 Memulai Training Model (Mode: AUTOLOG)...")
 
     # 2. LOAD DATA
-    # Path relatif aman untuk CI/CD dan Lokal
     base_dir = os.path.dirname(os.path.abspath(__file__))
     data_dir = os.path.join(base_dir, 'data')
     
@@ -33,7 +32,7 @@ def main():
     X_test = pd.read_csv(test_x_path)
     y_test = pd.read_csv(test_y_path).iloc[:, 0]
 
-    # 3. AKTIFKAN AUTOLOG (WAJIB)
+    # 3. AKTIFKAN AUTOLOG
     mlflow.sklearn.autolog(log_models=True)
 
     # 4. TRAINING
