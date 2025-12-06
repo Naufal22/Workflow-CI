@@ -1,59 +1,55 @@
-name: CI/CD Pipeline for Telco Churn
+import pandas as pd
+import os
+import mlflow
+import mlflow.sklearn
+import dagshub
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
 
-on:
-  push:
-    branches:
-      - main
+# --- 1. KONFIGURASI DAGSHUB ---
+os.environ["DAGSHUB_USER_TOKEN"] = "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
+dagshub.init(repo_owner='Naufal22', repo_name='Eksperimen_SML_MuhammadNaufalAqil', mlflow=True)
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+def main():
+    print("🚀 Memulai Training Model (Mode: AUTOLOG)...")
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    # 2. LOAD DATA
+    # Path relatif aman untuk CI/CD dan Lokal
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(base_dir, 'data')
+    
+    train_x_path = os.path.join(data_dir, 'train_clean.csv')
+    train_y_path = os.path.join(data_dir, 'train_target.csv')
+    test_x_path = os.path.join(data_dir, 'test_clean.csv')
+    test_y_path = os.path.join(data_dir, 'test_target.csv')
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+    if not os.path.exists(train_x_path):
+        print(f"❌ Error: File data tidak ditemukan di {data_dir}")
+        return
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install mlflow==2.18.0 dagshub pandas scikit-learn matplotlib seaborn virtualenv
+    print("📖 Membaca data...")
+    X_train = pd.read_csv(train_x_path)
+    y_train = pd.read_csv(train_y_path).iloc[:, 0]
+    X_test = pd.read_csv(test_x_path)
+    y_test = pd.read_csv(test_y_path).iloc[:, 0]
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+    # 3. AKTIFKAN AUTOLOG (WAJIB)
+    mlflow.sklearn.autolog(log_models=True)
 
-    - name: Train Model (MLflow Run)
-      env:
-        DAGSHUB_USER_TOKEN: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
-        MLFLOW_TRACKING_URI: "https://dagshub.com/Naufal22/Eksperimen_SML_MuhammadNaufalAqil.mlflow"
-        MLFLOW_TRACKING_USERNAME: "Naufal22"
-        MLFLOW_TRACKING_PASSWORD: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
-      run: |
-        cd MLProject
-        # FIX: Tambahkan experiment-name biar sinkron dengan script python
-        mlflow run . --env-manager=local --experiment-name Eksperimen_Telco_Churn_Final
-
-    - name: Build Docker Image
-      env:
-        MLFLOW_TRACKING_URI: "https://dagshub.com/Naufal22/Eksperimen_SML_MuhammadNaufalAqil.mlflow"
-        MLFLOW_TRACKING_USERNAME: "Naufal22"
-        MLFLOW_TRACKING_PASSWORD: "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
-      run: |
-        # Ambil Run ID paling baru dari DagsHub (karena kita pakai Cloud)
-        LATEST_RUN_ID=$(python -c "import mlflow; mlflow.set_tracking_uri('$MLFLOW_TRACKING_URI'); runs = mlflow.search_runs(experiment_names=['Eksperimen_Telco_Churn_Final']); print(runs.iloc[0].run_id)")
+    # 4. TRAINING
+    mlflow.set_experiment("Eksperimen_Telco_Churn_Final")
+    
+    with mlflow.start_run():
+        print("🧠 Sedang melatih model...")
         
-        echo "Building Docker from Run ID: $LATEST_RUN_ID"
-        
-        # Build dari Cloud Artifacts
-        mlflow models build-docker -m "runs:/$LATEST_RUN_ID/model" -n ${{ secrets.DOCKER_USERNAME }}/telco-churn-model:latest --enable-mlserver
+        model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
+        model.fit(X_train, y_train)
 
-    - name: Push Docker Image
-      run: |
-        docker push ${{ secrets.DOCKER_USERNAME }}/telco-churn-model:latest
+        y_pred = model.predict(X_test)
+        acc = accuracy_score(y_test, y_pred)
+        print(f"✅ Akurasi: {acc:.4f}")
+        
+        print("🎉 Selesai!.")
+
+if __name__ == "__main__":
+    main()
