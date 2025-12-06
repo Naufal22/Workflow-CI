@@ -1,99 +1,55 @@
 import pandas as pd
 import os
-import shutil
 import mlflow
 import mlflow.sklearn
-import dagshub 
+import dagshub
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.metrics import accuracy_score
 
-# --- 1. KONFIGURASI DAGSHUB (FIX) ---
-
-
+# --- 1. KONFIGURASI DAGSHUB ---
 os.environ["DAGSHUB_USER_TOKEN"] = "ce3238b3a7c35717e39d5ea8b431f6ddebfc92c6"
-
-# Inisialisasi Project
 dagshub.init(repo_owner='Naufal22', repo_name='Eksperimen_SML_MuhammadNaufalAqil', mlflow=True)
 
 def main():
-    print("Memulai Training Model...")
+    print("🚀 Memulai Training Model (Versi MLflow 2.18.0)...")
 
-    # 2. LOAD DATA BERSIH
-    # Path disesuaikan dengan struktur folder MLProject
-    train_path = 'data/train_clean.csv'
-    test_path = 'data/test_clean.csv'
+    # 2. LOAD DATA
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(base_dir, 'data')
+    
+    train_x_path = os.path.join(data_dir, 'train_clean.csv')
+    train_y_path = os.path.join(data_dir, 'train_target.csv')
+    test_x_path = os.path.join(data_dir, 'test_clean.csv')
+    test_y_path = os.path.join(data_dir, 'test_target.csv')
 
-    if not os.path.exists(train_path):
-        print("Error: File data tidak ditemukan. Jalankan preprocessing dulu!")
+    if not os.path.exists(train_x_path):
+        print("❌ Error: File data tidak ditemukan! Cek folder 'data'.")
         return
 
-    print("Membaca data...")
-    train_data = pd.read_csv(train_path)
-    test_data = pd.read_csv(test_path)
+    X_train = pd.read_csv(train_x_path)
+    y_train = pd.read_csv(train_y_path).iloc[:, 0]
+    X_test = pd.read_csv(test_x_path)
+    y_test = pd.read_csv(test_y_path).iloc[:, 0]
 
-    X_train = train_data.drop('Churn', axis=1)
-    y_train = train_data['Churn']
-    X_test = test_data.drop('Churn', axis=1)
-    y_test = test_data['Churn']
+    # 3. AKTIFKAN AUTOLOG
+    mlflow.sklearn.autolog(log_models=True)
 
-    # 3. SETTING EKSPERIMEN MLFLOW
-    mlflow.set_experiment("Eksperimen_Telco_Churn")
-
+    # 4. TRAINING
+    mlflow.set_experiment("Eksperimen_Telco_Churn_Final")
+    
     with mlflow.start_run():
-        print("Sedang melatih model...")
+        print("🧠 Sedang melatih model...")
         
-        n_estimators = 100
-        max_depth = 10
-        
-        model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=42)
+        # Training (Autolog otomatis catat params, metrics, DAN ARTEFAK MODEL)
+        model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
         model.fit(X_train, y_train)
 
+        # Evaluasi
         y_pred = model.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
-        print(f"Akurasi Model: {acc:.4f}")
-
-        # 4. LOGGING KE DAGSHUB
-        mlflow.log_param("n_estimators", n_estimators)
-        mlflow.log_param("max_depth", max_depth)
-        mlflow.log_metric("accuracy", acc)
-
-
-        print("Mengupload Model ke DagsHub (Metode Artifact)...")
+        print(f"✅ Akurasi: {acc:.4f}")
         
-        local_model_path = "model_rf_local"
-        
-        # Bersihkan jika ada sisa folder lama
-        if os.path.exists(local_model_path):
-            shutil.rmtree(local_model_path)
-
-        # 1. Simpan struktur MLflow di lokal
-        mlflow.sklearn.save_model(model, local_model_path)
-
-        # 2. Upload folder tersebut sebagai Artifact ke DagsHub
-
-        mlflow.log_artifacts(local_model_path, artifact_path="model_rf")
-
-        # 3. Hapus folder lokal
-        # shutil.rmtree(local_model_path)
-
-        # 5. BUAT & LOG ARTEFAK GAMBAR
-        print("Membuat Confusion Matrix...")
-        cm = confusion_matrix(y_test, y_pred)
-        plt.figure(figsize=(6,4))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-        plt.title(f'Confusion Matrix (Acc: {acc:.2f})')
-        plt.ylabel('Actual')
-        plt.xlabel('Predicted')
-        
-        plt.savefig("confusion_matrix.png")
-        plt.close()
-
-        mlflow.log_artifact("confusion_matrix.png")
-        os.remove("confusion_matrix.png")
-
-        print("Selesai! Cek dashboard DagsHub")
+        print(" Selesai!")
 
 if __name__ == "__main__":
     main()
